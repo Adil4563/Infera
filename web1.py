@@ -1064,21 +1064,46 @@ if uploaded_file is not None:
 
         sales_df = sales_df.sort_values("ds").reset_index(drop=True)
         
-        with st.spinner("Training Prophet model..."):
-            model = Prophet(
-                yearly_seasonality=True,
-                weekly_seasonality=True,
-                daily_seasonality=False,
-                changepoint_prior_scale=0.05,
+        from statsmodels.tsa.statespace.sarimax import SARIMAX
+        
+        with st.spinner("Training SARIMA model..."):
+        
+            # Set index
+            ts = sales_df.set_index("ds")["y"]
+        
+            # 🔥 SARIMA model (stable default)
+            model = SARIMAX(
+                ts,
+                order=(1, 1, 1),
+                seasonal_order=(1, 1, 1, 7),  # weekly seasonality
+                enforce_stationarity=False,
+                enforce_invertibility=False
             )
-            if sales_df["ds"].duplicated().any():
-                st.error("Duplicate dates found — fix your dataset")
-                st.stop()
-            st.write("Duplicate dates:", sales_df["ds"].duplicated().sum())
-            st.write(sales_df[sales_df["ds"].duplicated()])
-            model.fit(sales_df)
-            future = model.make_future_dataframe(periods=forecast_days)
-            forecast = model.predict(future)
+        
+            results = model.fit(disp=False)
+        
+            # Forecast future
+            forecast_values = results.get_forecast(steps=forecast_days)
+        
+            future_dates = pd.date_range(
+                start=ts.index.max() + pd.Timedelta(days=1),
+                periods=forecast_days
+            )
+        
+            future_df = pd.DataFrame({
+                "ds": future_dates,
+                "yhat": forecast_values.predicted_mean.values,
+                "yhat_lower": forecast_values.conf_int().iloc[:, 0].values,
+                "yhat_upper": forecast_values.conf_int().iloc[:, 1].values,
+            })
+        
+            # Combine with historical (to match Prophet format)
+            hist_df = sales_df.copy()
+            hist_df["yhat"] = hist_df["y"]
+            hist_df["yhat_lower"] = hist_df["y"]
+            hist_df["yhat_upper"] = hist_df["y"]
+        
+            forecast = pd.concat([hist_df, future_df], ignore_index=True)
 
         # ── Churn calculation ──
         if manual_churn is not None:
@@ -1123,7 +1148,7 @@ if uploaded_file is not None:
 
         # ── Plots ──
         tab1, tab2, tab3, tab4 = st.tabs([
-            "📊 Overlapping View", "📈 Prophet Forecast", "📉 Churn-Adjusted", "📋 Trend Component"
+            "📊 Overlapping View", "📈 Forecast", "📉 Churn-Adjusted", "📋 Trend Component"
         ])
 
         with tab1:
