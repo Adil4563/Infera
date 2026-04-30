@@ -1043,8 +1043,8 @@ if uploaded_file is not None:
             st.error(f"Missing required columns: {required_cols - set(df_orders.columns)}")
             return
 
-        df_orders["order_date"] = pd.to_datetime(df_orders["order_date"], dayfirst=False, infer_datetime_format=True)
-
+        df_orders["order_date"] = pd.to_datetime(df_orders["order_date"], errors="coerce")
+        df_orders = df_orders.dropna(subset=["order_date"])
         if not run_btn:
             st.success(f"✅ Loaded {len(df_orders):,} orders. Configure settings in the sidebar and click **Run Forecast**.")
             st.dataframe(df_orders.head(5), use_container_width=True)
