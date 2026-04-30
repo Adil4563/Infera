@@ -5,4 +5,5 @@ scikit-learn
 plotly
 matplotlib
 prophet==1.1.5
+cmdstanpy==1.2.0
 shap==0.44.1
