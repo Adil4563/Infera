@@ -1045,6 +1045,7 @@ if uploaded_file is not None:
 
         df_orders["order_date"] = pd.to_datetime(df_orders["order_date"], errors="coerce")
         df_orders = df_orders.dropna(subset=["order_date"])
+        
         if not run_btn:
             st.success(f"✅ Loaded {len(df_orders):,} orders. Configure settings in the sidebar and click **Run Forecast**.")
             st.dataframe(df_orders.head(5), use_container_width=True)
@@ -1052,13 +1053,17 @@ if uploaded_file is not None:
 
         # ── Prepare time series ──
         sales_df = (
-            df_orders.groupby("order_date")["total_amount_usd"]
-            .sum()
-            .reset_index()
-            .rename(columns={"order_date": "ds", "total_amount_usd": "y"})
-            .sort_values("ds")
-        )
+        df_orders
+        .groupby("order_date", as_index=False)
+        .agg({"total_amount_usd": "sum"})
+        .rename(columns={"order_date": "ds", "total_amount_usd": "y"})
+    )
 
+        # 🔥 FIX: ensure unique dates
+        sales_df = sales_df.drop_duplicates(subset=["ds"])
+
+        sales_df = sales_df.sort_values("ds").reset_index(drop=True)
+        
         with st.spinner("Training Prophet model..."):
             model = Prophet(
                 yearly_seasonality=True,
@@ -1066,6 +1071,9 @@ if uploaded_file is not None:
                 daily_seasonality=False,
                 changepoint_prior_scale=0.05,
             )
+            if sales_df["ds"].duplicated().any():
+                st.error("Duplicate dates found — fix your dataset")
+                st.stop()
             model.fit(sales_df)
             future = model.make_future_dataframe(periods=forecast_days)
             forecast = model.predict(future)
