@@ -1074,6 +1074,8 @@ if uploaded_file is not None:
             if sales_df["ds"].duplicated().any():
                 st.error("Duplicate dates found — fix your dataset")
                 st.stop()
+            st.write("Duplicate dates:", sales_df["ds"].duplicated().sum())
+            st.write(sales_df[sales_df["ds"].duplicated()])
             model.fit(sales_df)
             future = model.make_future_dataframe(periods=forecast_days)
             forecast = model.predict(future)
